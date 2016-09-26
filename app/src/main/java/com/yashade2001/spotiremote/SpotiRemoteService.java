@@ -79,4 +79,15 @@ public class SpotiRemoteService extends Service {
         // TODO: Return the communication channel to the service.
         throw new UnsupportedOperationException("Not yet implemented");
     }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        mSocket.disconnect();
+        mSocket.off("next", onNextEvent);
+        mSocket.off("prev", onPrevEvent);
+        mSocket.off("playpause", onPlayPauseEvent);
+        mSocket.off("searchplay", onSearchplayEvent);
+    }
 }
