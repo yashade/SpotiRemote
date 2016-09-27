@@ -2,7 +2,9 @@ package com.yashade2001.spotiremote;
 
 import android.app.SearchManager;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.os.IBinder;
 import android.provider.MediaStore;
 
@@ -16,16 +18,20 @@ import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 public class SpotiRemoteService extends Service {
 
+    public static final String SERVER_URL = "https://spotiremote.herokuapp.com";
+
     public SpotiRemoteService() { }
 
     private Socket mSocket;
     {
         try {
-            mSocket = IO.socket("https://spotiremote.herokuapp.com");
+            mSocket = IO.socket(SERVER_URL);
         } catch (URISyntaxException e) {
             e.printStackTrace();
         }
     }
+
+    AudioManager audioManager;
 
     @Override
     public void onCreate() {
@@ -33,8 +39,25 @@ public class SpotiRemoteService extends Service {
         mSocket.on("prev", onPrevEvent);
         mSocket.on("playpause", onPlayPauseEvent);
         mSocket.on("searchplay", onSearchplayEvent);
+        mSocket.on("setvolume", onSetvolumeEvent);
         mSocket.connect();
+
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     }
+
+    private Emitter.Listener onSetvolumeEvent = new Emitter.Listener() {
+        @Override
+        public void call(Object... args) {
+            JSONObject data = (JSONObject) args[0];
+            String level;
+            try {
+                level = data.getString("level");
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, Integer.valueOf(level), 0);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    };
 
     private Emitter.Listener onNextEvent = new Emitter.Listener() {
         @Override
@@ -89,5 +112,6 @@ public class SpotiRemoteService extends Service {
         mSocket.off("prev", onPrevEvent);
         mSocket.off("playpause", onPlayPauseEvent);
         mSocket.off("searchplay", onSearchplayEvent);
+        mSocket.off("setvolume", onSetvolumeEvent);
     }
 }
