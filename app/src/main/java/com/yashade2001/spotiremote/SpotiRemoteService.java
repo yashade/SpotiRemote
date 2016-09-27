@@ -21,7 +21,7 @@ public class SpotiRemoteService extends Service {
     private Socket mSocket;
     {
         try {
-            mSocket = IO.socket("http://192.168.1.31:1337");
+            mSocket = IO.socket("https://spotiremote.herokuapp.com");
         } catch (URISyntaxException e) {
             e.printStackTrace();
         }
