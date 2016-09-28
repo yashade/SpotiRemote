@@ -49,10 +49,10 @@ public class SpotiRemoteService extends Service {
         @Override
         public void call(Object... args) {
             JSONObject data = (JSONObject) args[0];
-            String level;
+            int level;
             try {
-                level = data.getString("level");
-                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, Integer.valueOf(level), 0);
+                level = data.getInt("level");
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
