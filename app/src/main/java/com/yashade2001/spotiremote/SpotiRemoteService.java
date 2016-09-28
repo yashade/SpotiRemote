@@ -5,6 +5,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.os.IBinder;
 import android.provider.MediaStore;
 
@@ -40,10 +41,27 @@ public class SpotiRemoteService extends Service {
         mSocket.on("playpause", onPlayPauseEvent);
         mSocket.on("searchplay", onSearchplayEvent);
         mSocket.on("setvolume", onSetvolumeEvent);
+        mSocket.on("share", onShareEvent);
         mSocket.connect();
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     }
+
+    private Emitter.Listener onShareEvent = new Emitter.Listener() {
+        @Override
+        public void call(Object... args) {
+            JSONObject data = (JSONObject) args[0];
+            String track;
+            try {
+                track = data.getString("track");
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(track));
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(intent);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    };
 
     private Emitter.Listener onSetvolumeEvent = new Emitter.Listener() {
         @Override
@@ -113,5 +131,6 @@ public class SpotiRemoteService extends Service {
         mSocket.off("playpause", onPlayPauseEvent);
         mSocket.off("searchplay", onSearchplayEvent);
         mSocket.off("setvolume", onSetvolumeEvent);
+        mSocket.off("share", onShareEvent);
     }
 }
