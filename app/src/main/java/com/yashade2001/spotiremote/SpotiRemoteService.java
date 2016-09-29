@@ -2,13 +2,21 @@ package com.yashade2001.spotiremote;
 
 import android.app.SearchManager;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.IBinder;
 import android.provider.MediaStore;
+import android.util.Log;
+import android.widget.Toast;
 
+import com.koushikdutta.async.future.FutureCallback;
+import com.koushikdutta.ion.Ion;
+
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -19,7 +27,7 @@ import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 public class SpotiRemoteService extends Service {
 
-    public static final String SERVER_URL = "https://spotiremote.herokuapp.com";
+    public static final String SERVER_URL = "http://192.168.1.31:1337";
 
     public SpotiRemoteService() { }
 
@@ -34,8 +42,58 @@ public class SpotiRemoteService extends Service {
 
     AudioManager audioManager;
 
+    String trackName;
+    String artistName;
+    String albumName;
+    String albumCoverUrl;
+
+    BroadcastReceiver metaDataChangedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            postMetadata(intent.getStringExtra("id").replace("spotify:track:", ""));
+        }
+    };
+
+    void postMetadata(String trackId) {
+        Ion.with(getApplicationContext())
+                .load("GET", "https://api.spotify.com/v1/tracks/" + trackId)
+                .asString()
+                .setCallback(new FutureCallback<String>() {
+                    @Override
+                    public void onCompleted(Exception e, String result) {
+                        try {
+                            JSONObject jsonObject = new JSONObject(result);
+                            JSONObject album = jsonObject.getJSONObject("album");
+                            JSONArray images = album.getJSONArray("images");
+                            JSONObject image = new JSONObject(images.get(1).toString());
+                            albumCoverUrl = image.getString("url");
+
+                            albumName = album.getString("name");
+
+                            JSONArray artists = jsonObject.getJSONArray("artists");
+                            JSONObject firstArtist = new JSONObject(artists.get(0).toString());
+                            artistName = firstArtist.getString("name");
+
+                            trackName = jsonObject.getString("name");
+
+                            Ion.with(getApplicationContext())
+                                    .load("POST", SERVER_URL + "/api/metadata" +
+                                            "?track=" + trackName.replace(" ", "%20") +
+                                            "&artist=" + artistName.replace(" ", "%20") +
+                                            "&album=" + albumName.replace(" ", "%20") +
+                                            "&albumcover=" + albumCoverUrl)
+                                    .asString();
+                        } catch (JSONException e1) {
+                            e1.printStackTrace();
+                        }
+                    }
+                });
+    }
+
     @Override
     public void onCreate() {
+        Ion.getDefault(getApplicationContext()).configure().setLogging("ion", Log.DEBUG);
+
         mSocket.on("next", onNextEvent);
         mSocket.on("prev", onPrevEvent);
         mSocket.on("playpause", onPlayPauseEvent);
@@ -43,6 +101,10 @@ public class SpotiRemoteService extends Service {
         mSocket.on("setvolume", onSetvolumeEvent);
         mSocket.on("share", onShareEvent);
         mSocket.connect();
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction("com.spotify.music.metadatachanged");
+        registerReceiver(metaDataChangedReceiver, intentFilter);
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     }
