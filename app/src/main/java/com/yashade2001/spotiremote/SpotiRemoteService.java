@@ -2,13 +2,20 @@ package com.yashade2001.spotiremote;
 
 import android.app.SearchManager;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.IBinder;
 import android.provider.MediaStore;
+import android.widget.Toast;
 
+import com.koushikdutta.async.future.FutureCallback;
+import com.koushikdutta.ion.Ion;
+
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -19,7 +26,7 @@ import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 public class SpotiRemoteService extends Service {
 
-    public static final String SERVER_URL = "https://spotiremote.herokuapp.com";
+    public static final String SERVER_URL = "http://192.168.1.31:1337";
 
     public SpotiRemoteService() { }
 
@@ -34,6 +41,57 @@ public class SpotiRemoteService extends Service {
 
     AudioManager audioManager;
 
+    String trackName;
+    String artistName;
+    String albumName;
+    String id;
+    String albumCoverUrl;
+
+    BroadcastReceiver metaDataChangedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            trackName = intent.getStringExtra("track");
+            artistName = intent.getStringExtra("artist");
+            albumName = intent.getStringExtra("album");
+            id = intent.getStringExtra("id").replace("spotify:track:", "");
+        }
+    };
+
+    void sendMetadata() {
+        Ion.with(getApplicationContext())
+                .load("GET", "https://api.spotify.com/v1/tracks/" + id)
+                .asString()
+                .setCallback(new FutureCallback<String>() {
+                    @Override
+                    public void onCompleted(Exception e, String result) {
+                        try {
+                            JSONObject jsonObject = new JSONObject(result);
+                            JSONObject album = jsonObject.getJSONObject("album");
+                            JSONArray images = album.getJSONArray("images");
+                            JSONObject image = new JSONObject(images.get(1).toString());
+                            albumCoverUrl = image.getString("url");
+
+                            Ion.with(getApplicationContext())
+                                    .load("POST", SERVER_URL +
+                                            "/api/metadata?track=" + trackName +
+                                            "&artist=" + artistName +
+                                            "&album=" + albumName +
+                                            "&albumcover=" + albumCoverUrl)
+                                    .asString()
+                                    .setCallback(new FutureCallback<String>() {
+                                        @Override
+                                        public void onCompleted(Exception e, String result) {
+                                            Toast.makeText(getApplicationContext(), "POSTed!", Toast.LENGTH_LONG).show();
+                                        }
+                                    });
+                        } catch (JSONException | NullPointerException e1) {
+                            e1.printStackTrace();
+                        }
+                    }
+                });
+
+    }
+
     @Override
     public void onCreate() {
         mSocket.on("next", onNextEvent);
@@ -43,6 +101,10 @@ public class SpotiRemoteService extends Service {
         mSocket.on("setvolume", onSetvolumeEvent);
         mSocket.on("share", onShareEvent);
         mSocket.connect();
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction("com.spotify.music.metadatachanged");
+        registerReceiver(metaDataChangedReceiver, intentFilter);
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     }
@@ -60,6 +122,7 @@ public class SpotiRemoteService extends Service {
             } catch (JSONException e) {
                 e.printStackTrace();
             }
+            sendMetadata();
         }
     };
 
@@ -81,6 +144,7 @@ public class SpotiRemoteService extends Service {
         @Override
         public void call(Object... args) {
             getApplicationContext().sendBroadcast(new Intent("com.spotify.mobile.android.ui.widget.NEXT"));
+            sendMetadata();
         }
     };
 
@@ -88,6 +152,7 @@ public class SpotiRemoteService extends Service {
         @Override
         public void call(Object... args) {
             getApplicationContext().sendBroadcast(new Intent("com.spotify.mobile.android.ui.widget.PREVIOUS"));
+            sendMetadata();
         }
     };
 
@@ -95,6 +160,7 @@ public class SpotiRemoteService extends Service {
         @Override
         public void call(Object... args) {
             getApplicationContext().sendBroadcast(new Intent("com.spotify.mobile.android.ui.widget.PLAY"));
+            sendMetadata();
         }
     };
 
@@ -112,6 +178,7 @@ public class SpotiRemoteService extends Service {
             } catch (JSONException e) {
                 e.printStackTrace();
             }
+            sendMetadata();
         }
     };
 
