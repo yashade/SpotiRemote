@@ -11,7 +11,6 @@ import android.net.Uri;
 import android.os.IBinder;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.widget.Toast;
 
 import com.koushikdutta.async.future.FutureCallback;
 import com.koushikdutta.ion.Ion;
