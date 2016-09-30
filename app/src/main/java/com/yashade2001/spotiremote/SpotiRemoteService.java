@@ -91,7 +91,7 @@ public class SpotiRemoteService extends Service {
 
     @Override
     public void onCreate() {
-        Ion.getDefault(getApplicationContext()).configure().setLogging("ion", Log.DEBUG);
+        // Ion.getDefault(getApplicationContext()).configure().setLogging("ion", Log.DEBUG);
 
         mSocket.on("next", onNextEvent);
         mSocket.on("prev", onPrevEvent);
